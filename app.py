@@ -11,15 +11,17 @@ st.set_page_config(
 )
 
 # 2. Inject Custom CSS for Modern Dark Mode
+
+# 2. Inject Custom CSS for Modern Dark Mode (Optimized for Mobile/iPad)
 st.markdown("""
 <style>
     /* Force Full Page Dark Background */
     .stApp {
         background-color: #0d1117 !important;
-        color: #e6edf3 !important;
+        color: #f0f6fc !important;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
-
+    
     /* Sleek Glowing Dark Header */
     .main-header {
         text-align: center;
@@ -44,17 +46,39 @@ st.markdown("""
         font-size: 0.95rem;
     }
 
-    /* Style Chat Containers */
+    /* Style Chat Containers & Force Bright Text */
     .stChatMessage {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 16px !important;
         padding: 14px 18px !important;
         margin-bottom: 12px !important;
-        color: #e6edf3 !important;
+        color: #f0f6fc !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
     }
+    
+    /* Target all text inside chat messages (p, span, div) for Safari readability */
+    .stChatMessage p, .stChatMessage span, .stChatMessage div {
+        color: #f0f6fc !important;
+    }
+    
+    /* Style Chat Input Box and Fix Safari White Bottom Container */
+    [data-testid="stChatInput"] {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 16px !important;
+    }
+    
+    [data-testid="stChatInput"] textarea {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important; /* Forces dark mode text color on Safari */
+    }
 
+    /* Target Streamlit's bottom sticky container on mobile */
+    [data-testid="stBottom"] {
+        background-color: #0d1117 !important;
+    }
+    
     /* Style File Uploader */
     .stFileUploader {
         background-color: #161b22;
@@ -62,6 +86,7 @@ st.markdown("""
         border-radius: 12px;
         padding: 8px;
         margin-bottom: 1rem;
+        color: #f0f6fc !important;
     }
 
     /* Hide Streamlit default branding / header clutter */
@@ -71,9 +96,9 @@ st.markdown("""
 </style>
 
 <div class="main-header">
-    <h1>🎓 Chat with Triple T</h1>
-    <p>Triple T will help you become better in your studies</p>
-    <p>Chenyu btw your english sucks pls work on it</p>
+    <h1>🎓 Learn with Triple T</h1>
+    <p>Strict, precise English coaching & writing practice</p>
+    <p>This is version 2.0, START WORKING NOW CHENYU</p>
 </div>
 """, unsafe_allow_html=True)
 
