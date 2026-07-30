@@ -13,15 +13,21 @@ st.set_page_config(
 # 2. Inject Custom CSS for Modern Dark Mode
 
 # 2. Inject Custom CSS for Modern Dark Mode (Optimized for Mobile/iPad)
+# 2. Inject Custom CSS for Modern Dark Mode (iOS/iPad OS Tested)
 st.markdown("""
 <style>
     /* Force Full Page Dark Background */
-    .stApp {
+    html, body, .stApp {
         background-color: #0d1117 !important;
         color: #f0f6fc !important;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
     
+    /* Fix Bottom Sticky Area in Safari/iPadOS */
+    [data-testid="stBottom"], footer, .stChatInput {
+        background-color: #0d1117 !important;
+    }
+
     /* Sleek Glowing Dark Header */
     .main-header {
         text-align: center;
@@ -46,23 +52,22 @@ st.markdown("""
         font-size: 0.95rem;
     }
 
-    /* Style Chat Containers & Force Bright Text */
+    /* Chat Messages - High Contrast Dark Bubble */
     .stChatMessage {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 16px !important;
         padding: 14px 18px !important;
         margin-bottom: 12px !important;
-        color: #f0f6fc !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
     }
     
-    /* Target all text inside chat messages (p, span, div) for Safari readability */
-    .stChatMessage p, .stChatMessage span, .stChatMessage div {
-        color: #f0f6fc !important;
+    /* Ensure all text inside chat bubbles is crisp white */
+    .stChatMessage, .stChatMessage p, .stChatMessage span, .stChatMessage div {
+        color: #ffffff !important;
     }
-    
-    /* Style Chat Input Box and Fix Safari White Bottom Container */
+
+    /* Chat Input Field Styling for iOS / iPadOS */
     [data-testid="stChatInput"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
@@ -70,23 +75,27 @@ st.markdown("""
     }
     
     [data-testid="stChatInput"] textarea {
+        background-color: transparent !important;
         color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important; /* Forces dark mode text color on Safari */
-    }
-
-    /* Target Streamlit's bottom sticky container on mobile */
-    [data-testid="stBottom"] {
-        background-color: #0d1117 !important;
+        -webkit-text-fill-color: #ffffff !important; /* Fixes invisible text on iPad Safari */
     }
     
-    /* Style File Uploader */
+    /* Placeholder text visibility */
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: #8b949e !important;
+        -webkit-text-fill-color: #8b949e !important;
+    }
+
+    /* File Uploader styling */
     .stFileUploader {
-        background-color: #161b22;
-        border: 1px dashed #30363d;
+        background-color: #161b22 !important;
+        border: 1px dashed #30363d !important;
         border-radius: 12px;
         padding: 8px;
         margin-bottom: 1rem;
-        color: #f0f6fc !important;
+    }
+    .stFileUploader label, .stFileUploader div {
+        color: #c9d1d9 !important;
     }
 
     /* Hide Streamlit default branding / header clutter */
@@ -98,7 +107,7 @@ st.markdown("""
 <div class="main-header">
     <h1>🎓 Learn with Triple T</h1>
     <p>Strict, precise English coaching & writing practice</p>
-    <p>This is version 2.0, START WORKING NOW CHENYU</p>
+    <p>Version 2.0 Updated 30/07/2026 | CHENYU WANG START STUDYING</p>
 </div>
 """, unsafe_allow_html=True)
 
