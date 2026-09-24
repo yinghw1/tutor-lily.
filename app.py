@@ -248,6 +248,13 @@ client = OpenAI(
     api_key=openrouter_key,
 )
 
+# Yinghao Mode password (kept in secrets, same pattern as the API key)
+try:
+    YINGHAO_PASSWORD = st.secrets["YINGHAO_MODE_PASSWORD"]
+except (FileNotFoundError, KeyError):
+    YINGHAO_PASSWORD = os.environ.get("YINGHAO_MODE_PASSWORD", "Ab447567")
+
+
 # ============================================================
 # 6. System Prompt
 # ============================================================
@@ -275,6 +282,18 @@ TONE:
 - Never give answers away on homework-guide and only solve step-by-step if user indicates.
 """
 
+# Unlocked by the "Yinghao Mode" password: a general-purpose, adaptive assistant
+# (no strict tutoring rules, no homework hand-holding restrictions)
+YINGHAO_SYSTEM_PROMPT = """
+You are Voxathon, a highly capable, adaptable AI assistant - similar in spirit to ChatGPT or Claude.
+
+- Help with anything: writing, homework, coding, research, brainstorming, explanations, general questions.
+- Give direct, complete answers. Do not withhold information or force step-by-step guided discovery unless the user asks for that style.
+- Adapt your tone, depth, and format to what the user is asking and how they write to you.
+- Be concise when a short answer suffices, and thorough when the topic warrants it.
+- If asked to write or complete homework, just help directly and well - use your best judgment on quality and clarity.
+"""
+
 # ============================================================
 # 7. Model options (vision-capable, strongest first)
 # ============================================================
@@ -286,7 +305,7 @@ MODEL_OPTIONS = {
 }
 
 # ============================================================
-# 8. Session state: active conversation + model
+# 8. Session state: active conversation + model + Yinghao Mode
 # ============================================================
 if "conversation_id" not in st.session_state:
     convs = list_conversations()
@@ -297,6 +316,9 @@ if "conversation_id" not in st.session_state:
 
 if "selected_model_label" not in st.session_state:
     st.session_state.selected_model_label = list(MODEL_OPTIONS.keys())[0]
+
+if "yinghao_mode" not in st.session_state:
+    st.session_state.yinghao_mode = False
 
 # ============================================================
 # 9. Sidebar: logo, theme toggle, model picker, new chat, collapsible history
@@ -323,6 +345,23 @@ with st.sidebar:
         st.session_state.conversation_id = create_conversation("New chat")
         st.rerun()
 
+    st.markdown("---")
+
+    with st.expander("🔓 Yinghao Mode" if st.session_state.yinghao_mode else "🔒 Yinghao Mode"):
+        if st.session_state.yinghao_mode:
+            st.caption("Unlocked - Voxathon is in general-purpose assistant mode.")
+            if st.button("Lock (back to tutor mode)", use_container_width=True):
+                st.session_state.yinghao_mode = False
+                st.rerun()
+        else:
+            pw_attempt = st.text_input("Password", type="password", key="yinghao_pw_input")
+            if st.button("Unlock", use_container_width=True):
+                if pw_attempt == YINGHAO_PASSWORD:
+                    st.session_state.yinghao_mode = True
+                    st.rerun()
+                else:
+                    st.error("Wrong password.")
+
     with st.expander("Past chats", expanded=True):
         for conv_id, title, created_at in list_conversations():
             cols = st.columns([5, 1])
@@ -342,7 +381,15 @@ with st.sidebar:
                     st.rerun()
 
 # ============================================================
-# 10. Load current conversation's messages
+# 10. Resolve active system prompt based on Yinghao Mode
+# ============================================================
+ACTIVE_SYSTEM_PROMPT = YINGHAO_SYSTEM_PROMPT if st.session_state.yinghao_mode else SYSTEM_PROMPT
+
+if st.session_state.yinghao_mode:
+    st.caption("🔓 Yinghao Mode active - Voxathon is answering as a general-purpose assistant.")
+
+# ============================================================
+# 11. Load current conversation's messages
 # ============================================================
 current_id = st.session_state.conversation_id
 messages = load_messages(current_id)
@@ -395,7 +442,7 @@ if user_input or uploaded_file:
         if uploaded_file:
             st.image(uploaded_file, caption="Uploaded Homework", use_container_width=True)
 
-    api_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + load_messages(current_id)
+    api_messages = [{"role": "system", "content": ACTIVE_SYSTEM_PROMPT}] + load_messages(current_id)
 
     with st.chat_message("assistant", avatar=LOGO_DATA_URI):
         with st.spinner("Reviewing writing & image..."):
@@ -409,4 +456,5 @@ if user_input or uploaded_file:
             save_message(current_id, "assistant", bot_reply)
 
     st.rerun()
+
 
