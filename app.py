@@ -19,7 +19,8 @@ LOGO_DATA_URI = f"data:image/png;base64,{LOGO_B64}"
 st.set_page_config(
     page_title="Voxathon",
     page_icon=LOGO_DATA_URI,
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="expanded"
 )
 
 # ============================================================
@@ -136,7 +137,9 @@ st.markdown(f"""
 
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
+    header {{
+        background-color: transparent !important;
+    }}
 </style>
 
 <div class="main-header">
