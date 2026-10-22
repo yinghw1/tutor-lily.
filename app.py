@@ -9,7 +9,7 @@ import streamlit as st
 from openai import OpenAI
 
 # ============================================================
-# Vox Mascot Logo (Base64 Encoded PNG/SVG - No Raw Text Leak)
+# Vox Mascot Logo (Base64 Encoded SVG)
 # ============================================================
 MASCOT_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><path d="M 50 12 C 55 12, 85 68, 88 74 C 92 82, 84 90, 75 90 L 25 90 C 16 90, 8 82, 12 74 C 15 68, 45 12, 50 12 Z" fill="#FFDC33" stroke="#000000" stroke-width="2.5" stroke-linejoin="round"/><path d="M 38 38 Q 42 36 46 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M 54 38 Q 58 36 62 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="42" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/><circle cx="42" cy="46" r="6" fill="#0099FF"/><circle cx="42" cy="46" r="4.5" fill="#000000"/><circle cx="40" cy="44" r="2" fill="#FFFFFF"/><circle cx="44" cy="47" r="1" fill="#FFFFFF"/><circle cx="58" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/><circle cx="58" cy="46" r="6" fill="#0099FF"/><circle cx="58" cy="46" r="4.5" fill="#000000"/><circle cx="56" cy="44" r="2" fill="#FFFFFF"/><circle cx="60" cy="47" r="1" fill="#FFFFFF"/><path d="M 38 54 Q 50 58 62 54 C 63 68, 37 68, 38 54 Z" fill="#8B0000" stroke="#000000" stroke-width="2"/><path d="M 40 54 Q 50 57 60 54" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M 42 63 Q 48 58 55 64 C 52 68, 45 68, 42 63 Z" fill="#FF6688"/></svg>"""
 
@@ -140,7 +140,7 @@ def load_session_messages(session_id):
 init_db()
 
 # ============================================================
-# Streamlit Page Setup & Custom Gemini UI Styling
+# Streamlit Page Setup & Custom UI Styling
 # ============================================================
 st.set_page_config(
     page_title="Vox",
@@ -149,35 +149,29 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Gemini-Inspired Custom CSS
 st.markdown("""
     <style>
-    /* Hide Streamlit default headers/footers */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Sidebar Styling */
     [data-testid="stSidebar"] {
         border-right: 1px solid rgba(128, 128, 128, 0.15);
         padding-top: 10px;
     }
 
-    /* Main Container Padding */
     .main .block-container {
         max-width: 850px;
         padding-top: 2rem;
         padding-bottom: 6rem;
     }
 
-    /* Floating Chat Input Bar */
     [data-testid="stChatInput"] {
         border-radius: 28px !important;
         border: 1px solid rgba(128, 128, 128, 0.2) !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
 
-    /* Clean Buttons */
     .stButton>button {
         border-radius: 20px;
         border: 1px solid rgba(128, 128, 128, 0.2);
@@ -293,7 +287,6 @@ else:  # Projects Mode
 active_session_id = st.session_state.get("active_session_id")
 messages = load_session_messages(active_session_id) if active_session_id else []
 
-# Gemini-style Minimal Greeting on New Conversations
 if not messages:
     st.markdown(
         f"""
@@ -306,12 +299,30 @@ if not messages:
         unsafe_allow_html=True
     )
 
-# Render Chat Messages
 for msg in messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# User Chat Action
+# ============================================================
+# Bottom Controls: File Attachment & Thinking Level
+# ============================================================
+col_file, col_thinking = st.columns([3, 2])
+
+with col_file:
+    uploaded_file = st.file_uploader(
+        "Attach files", 
+        type=["png", "jpg", "jpeg", "html", "txt", "py", "json", "csv", "md"],
+        label_visibility="collapsed"
+    )
+
+with col_thinking:
+    thinking_level = st.select_slider(
+        "Thinking Level",
+        options=["Low", "Mid", "High"],
+        value="Mid",
+        label_visibility="collapsed"
+    )
+
 if prompt := st.chat_input("Ask Vox anything..."):
     if not api_key:
         st.error("Please enter your OpenRouter API key in the sidebar.")
@@ -326,13 +337,36 @@ if prompt := st.chat_input("Ask Vox anything..."):
         }
     )
 
-    save_chat_message(active_session_id, "user", prompt)
+    # Process file attachment
+    file_content_str = ""
+    if uploaded_file is not None:
+        file_name = uploaded_file.name
+        file_ext = file_name.split(".")[-1].lower()
+        if file_ext in ["png", "jpg", "jpeg"]:
+            file_content_str = f"\n\n[Attached Image: {file_name}]"
+        else:
+            try:
+                string_data = uploaded_file.getvalue().decode("utf-8")
+                file_content_str = f"\n\n--- Attached File ({file_name}) ---\n{string_data}\n--------------------------------------"
+            except Exception:
+                file_content_str = f"\n\n[Attached binary file: {file_name}]"
+
+    combined_prompt = prompt + file_content_str
+
+    save_chat_message(active_session_id, "user", combined_prompt)
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(combined_prompt)
+
+    # Tailor system instruction based on Thinking Level
+    thinking_instructions = {
+        "Low": " Provide direct, concise, and straight-to-the-point answers with minimal preamble.",
+        "Mid": " Provide balanced, accurate, well-reasoned answers with clear logical steps.",
+        "High": " Think deeply and exhaustively. Perform rigorous logical analysis, break down step-by-step, and provide comprehensive, highly detailed explanations."
+    }
 
     system_prompt = (
-        "You are Vox (full name: Voxathon), a versatile, highly competent, friendly AI assistant. "
-        "Provide clear, accurate, sleek, and well-structured answers."
+        "You are Vox (full name: Voxathon), a versatile, highly competent, friendly AI assistant."
+        + thinking_instructions.get(thinking_level, "")
     )
 
     if mode == "Projects Mode" and current_project_id:
@@ -350,12 +384,12 @@ if prompt := st.chat_input("Ask Vox anything..."):
     ]
 
     model_map = {
-        "GPT-5": "openai/gpt-5",
+        "GPT-5": "openai/gpt-4o",
         "Gemini 4": "google/gemini-2.5-flash",
         "Claude Sonnet 5.5": "anthropic/claude-3.5-sonnet",
-        "Gemini 3": "google/gemini-pro"
+        "Gemini 3": "google/gemini-flash-1.5"
     }
-    model_code = model_map.get(selected_model, "openai/gpt-5")
+    model_code = model_map.get(selected_model, "openai/gpt-4o")
 
     with st.chat_message("assistant"):
         placeholder = st.empty()
