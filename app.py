@@ -21,7 +21,6 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # Projects Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +29,6 @@ def init_db():
         )
     """)
     
-    # Project Memory Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS project_memories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +39,6 @@ def init_db():
         )
     """)
     
-    # Chat History Table (Saves past chats)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,18 +120,18 @@ def clear_chat_history(project_id=None):
 init_db()
 
 # ============================================================
-# Streamlit App UI & Setup
+# Streamlit App UI & Layout
 # ============================================================
 st.set_page_config(page_title="Voxathon AI Assistant", page_icon="🤖", layout="wide")
 
-# Display Logo Header
+# Main Header Logo + Title
 st.markdown(
     f"""
     <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
-        <img src="data:image/png;base64,{LOGO_B64}" width="100" style="object-fit: contain;">
+        <img src="data:image/png;base64,{LOGO_B64}" width="90" style="object-fit: contain;">
         <div>
             <h1 style="margin: 0;">Voxathon AI Assistant</h1>
-            <p style="margin: 0; color: #666;">Your General-Purpose Intelligent Workspace</p>
+            <p style="margin: 0; color: #666;">General-Purpose Intelligent Workspace</p>
         </div>
     </div>
     """,
@@ -142,10 +139,19 @@ st.markdown(
 )
 
 # Sidebar
-st.sidebar.image(base64.b64decode(LOGO_B64), width=120)
+st.sidebar.markdown(
+    f"""
+    <div style="text-align: center; margin-bottom: 15px;">
+        <img src="data:image/png;base64,{LOGO_B64}" width="120" style="object-fit: contain;">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 st.sidebar.title("Voxathon Panel")
 
-api_key = st.sidebar.text_input("API Key", type="password")
+# Load API Key securely from Env / Secrets if present, or let user input manually
+default_key = os.getenv("OPENROUTER_API_KEY", "")
+api_key = st.sidebar.text_input("OpenRouter API Key", value=default_key, type="password")
 
 selected_model = st.sidebar.selectbox(
     "AI Model",
@@ -204,10 +210,18 @@ for message in st.session_state.messages:
 # User Chat Action
 if prompt := st.chat_input("Ask Voxathon anything..."):
     if not api_key:
-        st.error("Please supply an API Key in the sidebar.")
+        st.error("Please enter your OpenRouter API Key in the sidebar.")
         st.stop()
         
-    client = OpenAI(api_key=api_key)
+    # OpenRouter API Integration setup using OpenAI client
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+        default_headers={
+            "HTTP-Referer": "https://voxathon-app.streamlit.app",
+            "X-Title": "Voxathon AI Assistant",
+        }
+    )
 
     # Render User Message
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -234,13 +248,14 @@ if prompt := st.chat_input("Ask Voxathon anything..."):
         {"role": m["role"], "content": m["content"]} for m in st.session_state.messages
     ]
 
+    # Map selected model name to OpenRouter model IDs
     model_map = {
-        "GPT-5": "gpt-5",
-        "Gemini 4": "gemini-4",
-        "Claude Sonnet 5.5": "claude-sonnet-5.5",
-        "Gemini 3": "gemini-3"
+        "GPT-5": "openai/gpt-5",
+        "Gemini 4": "google/gemini-2.5-flash",  # Update to your target OpenRouter ID string
+        "Claude Sonnet 5.5": "anthropic/claude-3.5-sonnet",
+        "Gemini 3": "google/gemini-pro"
     }
-    model_code = model_map.get(selected_model, "gpt-5")
+    model_code = model_map.get(selected_model, "openai/gpt-5")
 
     with st.chat_message("assistant"):
         placeholder = st.empty()
@@ -258,13 +273,13 @@ if prompt := st.chat_input("Ask Voxathon anything..."):
                     placeholder.markdown(full_res + "▌")
             placeholder.markdown(full_res)
         except Exception as e:
-            st.error(f"Execution Error: {e}")
+            st.error(f"OpenRouter Connection Error: {e}")
             st.stop()
 
     st.session_state.messages.append({"role": "assistant", "content": full_res})
     save_chat_message("assistant", full_res, target_pid)
 
-    # Extract Memory for Projects
+    # Extract Memory for Projects Mode
     if mode == "Projects Mode" and project_id:
         extract_prompt = (
             "Identify if any persistent fact, decision, preference, or critical project context was shared in this exchange. "
@@ -284,4 +299,3 @@ if prompt := st.chat_input("Ask Voxathon anything..."):
                     add_project_memory(project_id, fact.strip())
         except Exception:
             pass
-
