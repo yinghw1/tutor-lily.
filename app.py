@@ -8,15 +8,40 @@ import streamlit as st
 from openai import OpenAI
 
 # ============================================================
-# Logo (Clean Voxathon SVG Mascot - Transparent Background)
+# Vox / Voxathon Logo (Yellow Rounded Triangle Mascot SVG)
 # ============================================================
 LOGO_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <circle cx="50" cy="50" r="45" fill="#4F46E5" />
-  <circle cx="35" cy="40" r="8" fill="#FFFFFF" />
-  <circle cx="65" cy="40" r="8" fill="#FFFFFF" />
-  <circle cx="35" cy="40" r="4" fill="#1E1B4B" />
-  <circle cx="65" cy="40" r="4" fill="#1E1B4B" />
-  <path d="M 30 65 Q 50 80 70 65" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" fill="none" />
+  <!-- Yellow Rounded Triangular Body -->
+  <path d="M 50 12 C 55 12, 85 68, 88 74 C 92 82, 84 90, 75 90 L 25 90 C 16 90, 8 82, 12 74 C 15 68, 45 12, 50 12 Z" 
+        fill="#FFDC33" stroke="#000000" stroke-width="2.5" stroke-linejoin="round"/>
+  
+  # Eyebrows
+  <path d="M 38 38 Q 42 36 46 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+  <path d="M 54 38 Q 58 36 62 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+
+  # Eyes (Blue & Black Iris)
+  <g id="left-eye">
+    <circle cx="42" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/>
+    <circle cx="42" cy="46" r="6" fill="#0099FF"/>
+    <circle cx="42" cy="46" r="4.5" fill="#000000"/>
+    <circle cx="40" cy="44" r="2" fill="#FFFFFF"/>
+    <circle cx="44" cy="47" r="1" fill="#FFFFFF"/>
+  </g>
+  
+  <g id="right-eye">
+    <circle cx="58" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/>
+    <circle cx="58" cy="46" r="6" fill="#0099FF"/>
+    <circle cx="58" cy="46" r="4.5" fill="#000000"/>
+    <circle cx="56" cy="44" r="2" fill="#FFFFFF"/>
+    <circle cx="60" cy="47" r="1" fill="#FFFFFF"/>
+  </g>
+
+  # Mouth & Tongue
+  <g id="mouth">
+    <path d="M 38 54 Q 50 58 62 54 C 63 68, 37 68, 38 54 Z" fill="#8B0000" stroke="#000000" stroke-width="2"/>
+    <path d="M 40 54 Q 50 57 60 54" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M 42 63 Q 48 58 55 64 C 52 68, 45 68, 42 63 Z" fill="#FF6688"/>
+  </g>
 </svg>"""
 
 # ============================================================
@@ -73,7 +98,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Database Functions
+# Database Helper Functions
 def get_or_create_project(project_name):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -136,7 +161,7 @@ def save_chat_message(session_id, role, content):
     cursor = conn.cursor()
     cursor.execute("INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)", (session_id, role, content))
     
-    # Auto-update session title based on first prompt
+    # Auto-update session title based on user's first query
     cursor.execute("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?", (session_id,))
     count = cursor.fetchone()[0]
     if count == 1 and role == "user":
@@ -159,21 +184,25 @@ init_db()
 # ============================================================
 # Streamlit App UI & Setup
 # ============================================================
-st.set_page_config(page_title="Voxathon AI Assistant", page_icon="🤖", layout="wide")
+st.set_page_config(
+    page_title="Vox (Voxathon)",
+    page_icon="🟡",
+    layout="wide"
+)
 
-# Main Header
+# Main Title & Logo Header
 col_logo, col_title = st.columns([1, 8])
 with col_logo:
     st.markdown(LOGO_SVG, unsafe_allow_html=True)
 with col_title:
-    st.title("Voxathon AI Assistant")
-    st.caption("General-Purpose Intelligent Workspace")
+    st.title("Vox (Voxathon)")
+    st.caption("Your General-Purpose Intelligent Workspace")
 
-# Sidebar Configuration
+# Sidebar
 st.sidebar.markdown(f"<div style='text-align: center; margin-bottom: 10px;'>{LOGO_SVG}</div>", unsafe_allow_html=True)
-st.sidebar.title("Voxathon Navigation")
+st.sidebar.title("Vox Workspace")
 
-# OpenRouter API Key Input (Masked, optional environment variable fallback)
+# OpenRouter API Key Input (Masked)
 default_api_key = os.getenv("OPENROUTER_API_KEY", "")
 api_key = st.sidebar.text_input("OpenRouter API Key", value=default_api_key, type="password")
 
@@ -182,13 +211,13 @@ selected_model = st.sidebar.selectbox(
     ["GPT-5", "Gemini 4", "Claude Sonnet 5.5", "Gemini 3"]
 )
 
-# Navigation Mode Selection
-mode = st.sidebar.radio("Workspace Mode", ["General AI Assistant", "Projects Mode"])
+# Workspace Mode Navigation
+mode = st.sidebar.radio("Mode", ["General AI Assistant", "Projects Mode"])
 
 current_project_id = None
 current_project_name = None
 
-# Sidebar Handling: General Assistant vs Projects Mode
+# General Assistant vs Projects Workspace Handling
 if mode == "General AI Assistant":
     st.sidebar.markdown("---")
     if st.sidebar.button("➕ New Chat", use_container_width=True):
@@ -268,15 +297,15 @@ else: # Projects Mode
 active_session_id = st.session_state.get("active_session_id")
 messages = load_session_messages(active_session_id) if active_session_id else []
 
-# Display Active Conversation
+# Display Conversation History
 for msg in messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # User Chat Input
-if prompt := st.chat_input("How can Voxathon help you today?"):
+if prompt := st.chat_input("Ask Vox anything..."):
     if not api_key:
-        st.error("Please provide an OpenRouter API Key in the sidebar.")
+        st.error("Please enter an OpenRouter API Key in the sidebar.")
         st.stop()
 
     client = OpenAI(
@@ -284,18 +313,18 @@ if prompt := st.chat_input("How can Voxathon help you today?"):
         api_key=api_key,
         default_headers={
             "HTTP-Referer": "https://voxathon-app.streamlit.app",
-            "X-Title": "Voxathon AI Assistant",
+            "X-Title": "Vox (Voxathon) AI Assistant",
         }
     )
 
-    # Save and display user query
+    # Save and render user message
     save_chat_message(active_session_id, "user", prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Base System Prompt
+    # Vox System Prompt
     system_prompt = (
-        "You are Voxathon, a versatile, highly competent, friendly general-purpose AI assistant. "
+        "You are Vox (full name: Voxathon), a versatile, highly competent, friendly general-purpose AI assistant. "
         "Provide thorough, clear, accurate, and structured answers."
     )
 
@@ -308,7 +337,6 @@ if prompt := st.chat_input("How can Voxathon help you today?"):
             "Use this recalled context naturally when answering the user."
         )
 
-    # Load updated message stream for API context
     full_chat_history = load_session_messages(active_session_id)
     api_messages = [{"role": "system", "content": system_prompt}] + [
         {"role": m["role"], "content": m["content"]} for m in full_chat_history
@@ -343,7 +371,7 @@ if prompt := st.chat_input("How can Voxathon help you today?"):
 
     save_chat_message(active_session_id, "assistant", full_res)
 
-    # Extract memory when in Projects Mode
+    # Memory Extraction (Projects Mode)
     if mode == "Projects Mode" and current_project_id:
         extract_prompt = (
             "Identify if any persistent fact, decision, preference, or critical project requirement was shared in this turn. "
