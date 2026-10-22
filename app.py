@@ -1,4 +1,5 @@
 import os
+import base64
 import json
 import sqlite3
 import uuid
@@ -8,52 +9,20 @@ import streamlit as st
 from openai import OpenAI
 
 # ============================================================
-# Vox / Voxathon Logo (Yellow Rounded Triangle Mascot SVG)
+# Vox Mascot Logo (Base64 Encoded PNG/SVG - No Raw Text Leak)
 # ============================================================
-LOGO_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <!-- Yellow Rounded Triangular Body -->
-  <path d="M 50 12 C 55 12, 85 68, 88 74 C 92 82, 84 90, 75 90 L 25 90 C 16 90, 8 82, 12 74 C 15 68, 45 12, 50 12 Z" 
-        fill="#FFDC33" stroke="#000000" stroke-width="2.5" stroke-linejoin="round"/>
-  
-  # Eyebrows
-  <path d="M 38 38 Q 42 36 46 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-  <path d="M 54 38 Q 58 36 62 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+MASCOT_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"><path d="M 50 12 C 55 12, 85 68, 88 74 C 92 82, 84 90, 75 90 L 25 90 C 16 90, 8 82, 12 74 C 15 68, 45 12, 50 12 Z" fill="#FFDC33" stroke="#000000" stroke-width="2.5" stroke-linejoin="round"/><path d="M 38 38 Q 42 36 46 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M 54 38 Q 58 36 62 38" stroke="#000000" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="42" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/><circle cx="42" cy="46" r="6" fill="#0099FF"/><circle cx="42" cy="46" r="4.5" fill="#000000"/><circle cx="40" cy="44" r="2" fill="#FFFFFF"/><circle cx="44" cy="47" r="1" fill="#FFFFFF"/><circle cx="58" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/><circle cx="58" cy="46" r="6" fill="#0099FF"/><circle cx="58" cy="46" r="4.5" fill="#000000"/><circle cx="56" cy="44" r="2" fill="#FFFFFF"/><circle cx="60" cy="47" r="1" fill="#FFFFFF"/><path d="M 38 54 Q 50 58 62 54 C 63 68, 37 68, 38 54 Z" fill="#8B0000" stroke="#000000" stroke-width="2"/><path d="M 40 54 Q 50 57 60 54" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M 42 63 Q 48 58 55 64 C 52 68, 45 68, 42 63 Z" fill="#FF6688"/></svg>"""
 
-  # Eyes (Blue & Black Iris)
-  <g id="left-eye">
-    <circle cx="42" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/>
-    <circle cx="42" cy="46" r="6" fill="#0099FF"/>
-    <circle cx="42" cy="46" r="4.5" fill="#000000"/>
-    <circle cx="40" cy="44" r="2" fill="#FFFFFF"/>
-    <circle cx="44" cy="47" r="1" fill="#FFFFFF"/>
-  </g>
-  
-  <g id="right-eye">
-    <circle cx="58" cy="46" r="8" fill="#FFFFFF" stroke="#000000" stroke-width="1"/>
-    <circle cx="58" cy="46" r="6" fill="#0099FF"/>
-    <circle cx="58" cy="46" r="4.5" fill="#000000"/>
-    <circle cx="56" cy="44" r="2" fill="#FFFFFF"/>
-    <circle cx="60" cy="47" r="1" fill="#FFFFFF"/>
-  </g>
-
-  # Mouth & Tongue
-  <g id="mouth">
-    <path d="M 38 54 Q 50 58 62 54 C 63 68, 37 68, 38 54 Z" fill="#8B0000" stroke="#000000" stroke-width="2"/>
-    <path d="M 40 54 Q 50 57 60 54" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <path d="M 42 63 Q 48 58 55 64 C 52 68, 45 68, 42 63 Z" fill="#FF6688"/>
-  </g>
-</svg>"""
+LOGO_B64 = base64.b64encode(MASCOT_SVG.encode("utf-8")).decode("utf-8")
 
 # ============================================================
-# Database Setup (SQLite for Projects, Memory, Sessions & Chats)
+# Database Setup
 # ============================================================
 DB_FILE = "voxathon_app.db"
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
-    # Projects Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,8 +30,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Project Memory Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS project_memories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,8 +39,6 @@ def init_db():
             FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
         )
     """)
-    
-    # Chat Sessions Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_sessions (
             session_id TEXT PRIMARY KEY,
@@ -82,8 +47,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Chat History Messages Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,11 +57,9 @@ def init_db():
             FOREIGN KEY(session_id) REFERENCES chat_sessions(session_id) ON DELETE CASCADE
         )
     """)
-    
     conn.commit()
     conn.close()
 
-# Database Helper Functions
 def get_or_create_project(project_name):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -160,14 +121,11 @@ def save_chat_message(session_id, role, content):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)", (session_id, role, content))
-    
-    # Auto-update session title based on user's first query
     cursor.execute("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?", (session_id,))
     count = cursor.fetchone()[0]
     if count == 1 and role == "user":
-        title = content[:25] + "..." if len(content) > 25 else content
+        title = content[:28] + "..." if len(content) > 28 else content
         cursor.execute("UPDATE chat_sessions SET title = ? WHERE session_id = ?", (title, session_id))
-        
     conn.commit()
     conn.close()
 
@@ -182,52 +140,91 @@ def load_session_messages(session_id):
 init_db()
 
 # ============================================================
-# Streamlit App UI & Setup
+# Streamlit Page Setup & Custom Gemini UI Styling
 # ============================================================
 st.set_page_config(
-    page_title="Vox (Voxathon)",
-    page_icon="🟡",
-    layout="wide"
+    page_title="Vox",
+    page_icon=f"data:image/svg+xml;base64,{LOGO_B64}",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Main Title & Logo Header
-col_logo, col_title = st.columns([1, 8])
-with col_logo:
-    st.markdown(LOGO_SVG, unsafe_allow_html=True)
-with col_title:
-    st.title("Vox (Voxathon)")
-    st.caption("Your General-Purpose Intelligent Workspace")
+# Gemini-Inspired Custom CSS
+st.markdown("""
+    <style>
+    /* Hide Streamlit default headers/footers */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
 
-# Sidebar
-st.sidebar.markdown(f"<div style='text-align: center; margin-bottom: 10px;'>{LOGO_SVG}</div>", unsafe_allow_html=True)
-st.sidebar.title("Vox Workspace")
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        border-right: 1px solid rgba(128, 128, 128, 0.15);
+        padding-top: 10px;
+    }
 
-# OpenRouter API Key Input (Masked)
-default_api_key = os.getenv("OPENROUTER_API_KEY", "")
-api_key = st.sidebar.text_input("OpenRouter API Key", value=default_api_key, type="password")
+    /* Main Container Padding */
+    .main .block-container {
+        max-width: 850px;
+        padding-top: 2rem;
+        padding-bottom: 6rem;
+    }
 
-selected_model = st.sidebar.selectbox(
-    "AI Model",
-    ["GPT-5", "Gemini 4", "Claude Sonnet 5.5", "Gemini 3"]
-)
+    /* Floating Chat Input Bar */
+    [data-testid="stChatInput"] {
+        border-radius: 28px !important;
+        border: 1px solid rgba(128, 128, 128, 0.2) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
 
-# Workspace Mode Navigation
-mode = st.sidebar.radio("Mode", ["General AI Assistant", "Projects Mode"])
+    /* Clean Buttons */
+    .stButton>button {
+        border-radius: 20px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        transition: all 0.2s ease;
+    }
+    .stButton>button:hover {
+        border-color: #0099FF;
+        color: #0099FF;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# Sidebar & Navigation
+# ============================================================
+with st.sidebar:
+    st.markdown(
+        f"""
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 20px 0;">
+            <img src="data:image/svg+xml;base64,{LOGO_B64}" width="42" height="42">
+            <span style="font-size: 22px; font-weight: 600; letter-spacing: -0.5px;">Vox</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    default_api_key = os.getenv("OPENROUTER_API_KEY", "")
+    api_key = st.text_input("API Key", value=default_api_key, type="password", placeholder="Enter OpenRouter Key")
+
+    selected_model = st.selectbox(
+        "Model",
+        ["GPT-5", "Gemini 4", "Claude Sonnet 5.5", "Gemini 3"]
+    )
+
+    mode = st.radio("Workspace", ["General Assistant", "Projects Mode"])
 
 current_project_id = None
 current_project_name = None
 
-# General Assistant vs Projects Workspace Handling
-if mode == "General AI Assistant":
+if mode == "General Assistant":
     st.sidebar.markdown("---")
     if st.sidebar.button("➕ New Chat", use_container_width=True):
         new_sid = create_chat_session(title="New Chat", project_id=None)
         st.session_state.active_session_id = new_sid
         st.rerun()
 
-    st.sidebar.subheader("Past Chats")
     sessions = get_sessions(project_id=None)
-    
     if not sessions:
         if "active_session_id" not in st.session_state:
             st.session_state.active_session_id = create_chat_session("New Chat", None)
@@ -236,24 +233,23 @@ if mode == "General AI Assistant":
             st.session_state.active_session_id = sessions[0][0]
             
         session_dict = {s[1]: s[0] for s in sessions}
+        st.sidebar.caption("Recent Chats")
         selected_title = st.sidebar.radio(
-            "Select Session:",
+            "Recent Chats",
             list(session_dict.keys()),
-            index=0 if st.session_state.active_session_id not in session_dict.values() else list(session_dict.values()).index(st.session_state.active_session_id)
+            label_visibility="collapsed"
         )
         st.session_state.active_session_id = session_dict[selected_title]
 
-else: # Projects Mode
+else:  # Projects Mode
     st.sidebar.markdown("---")
-    st.sidebar.subheader("Projects Workspace")
+    st.sidebar.caption("Projects")
     all_projects = get_all_projects()
     
-    # Create New Project
-    new_pname = st.sidebar.text_input("Create Project Name")
-    if st.sidebar.button("Add Project") and new_pname.strip():
+    new_pname = st.sidebar.text_input("New Project", placeholder="Project Name")
+    if st.sidebar.button("Create Project", use_container_width=True) and new_pname.strip():
         pid = get_or_create_project(new_pname.strip())
         st.session_state.current_project_id = pid
-        st.sidebar.success(f"Project '{new_pname.strip()}' created!")
         st.rerun()
 
     if all_projects:
@@ -266,46 +262,59 @@ else: # Projects Mode
         current_project_name = selected_pname
         st.session_state.current_project_id = current_project_id
 
-        # New Project Chat Button
         if st.sidebar.button("➕ New Project Chat", use_container_width=True):
             new_sid = create_chat_session(title=f"{current_project_name} Chat", project_id=current_project_id)
             st.session_state.active_session_id = new_sid
             st.rerun()
 
-        st.sidebar.markdown("**Project Chats**")
         proj_sessions = get_sessions(project_id=current_project_id)
-        
         if not proj_sessions:
-            if "active_session_id" not in st.session_state or get_sessions(project_id=current_project_id) == []:
+            if "active_session_id" not in st.session_state:
                 st.session_state.active_session_id = create_chat_session(f"{current_project_name} Chat", current_project_id)
         else:
             psession_dict = {s[1]: s[0] for s in proj_sessions}
+            st.sidebar.caption("Project Chats")
             selected_ptitle = st.sidebar.radio(
-                "Select Project Session:",
-                list(psession_dict.keys())
+                "Project Chats",
+                list(psession_dict.keys()),
+                label_visibility="collapsed"
             )
             st.session_state.active_session_id = psession_dict[selected_ptitle]
 
-        # Display Project Long-term Memories
         memories = get_project_memories(current_project_id)
         if memories:
-            with st.sidebar.expander("📌 Recalled Project Memories"):
+            with st.sidebar.expander("🧠 Saved Context"):
                 for m in memories:
-                    st.markdown(f"- {m}")
+                    st.markdown(f"• {m}")
 
-# Fetch active messages
+# ============================================================
+# Main Header & Chat Stream
+# ============================================================
 active_session_id = st.session_state.get("active_session_id")
 messages = load_session_messages(active_session_id) if active_session_id else []
 
-# Display Conversation History
+# Gemini-style Minimal Greeting on New Conversations
+if not messages:
+    st.markdown(
+        f"""
+        <div style="text-align: center; margin-top: 60px; margin-bottom: 40px;">
+            <img src="data:image/svg+xml;base64,{LOGO_B64}" width="72" height="72">
+            <h2 style="font-weight: 500; margin-top: 15px;">Hello, I'm Vox</h2>
+            <p style="color: gray;">How can I help you today?</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# Render Chat Messages
 for msg in messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# User Chat Input
+# User Chat Action
 if prompt := st.chat_input("Ask Vox anything..."):
     if not api_key:
-        st.error("Please enter an OpenRouter API Key in the sidebar.")
+        st.error("Please enter your OpenRouter API key in the sidebar.")
         st.stop()
 
     client = OpenAI(
@@ -313,28 +322,26 @@ if prompt := st.chat_input("Ask Vox anything..."):
         api_key=api_key,
         default_headers={
             "HTTP-Referer": "https://voxathon-app.streamlit.app",
-            "X-Title": "Vox (Voxathon) AI Assistant",
+            "X-Title": "Vox (Voxathon)",
         }
     )
 
-    # Save and render user message
     save_chat_message(active_session_id, "user", prompt)
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Vox System Prompt
     system_prompt = (
-        "You are Vox (full name: Voxathon), a versatile, highly competent, friendly general-purpose AI assistant. "
-        "Provide thorough, clear, accurate, and structured answers."
+        "You are Vox (full name: Voxathon), a versatile, highly competent, friendly AI assistant. "
+        "Provide clear, accurate, sleek, and well-structured answers."
     )
 
     if mode == "Projects Mode" and current_project_id:
         memories = get_project_memories(current_project_id)
         mem_str = "\n".join([f"- {m}" for m in memories]) if memories else "No memory recorded yet."
         system_prompt += (
-            f"\n\nYou are operating in Project Mode for the project '{current_project_name}'."
-            f"\nHere is the accumulated long-term memory for this project:\n{mem_str}\n"
-            "Use this recalled context naturally when answering the user."
+            f"\n\nYou are operating in Project Mode for '{current_project_name}'."
+            f"\nHere is the saved long-term project context:\n{mem_str}\n"
+            "Use this context naturally when assisting."
         )
 
     full_chat_history = load_session_messages(active_session_id)
@@ -371,12 +378,10 @@ if prompt := st.chat_input("Ask Vox anything..."):
 
     save_chat_message(active_session_id, "assistant", full_res)
 
-    # Memory Extraction (Projects Mode)
     if mode == "Projects Mode" and current_project_id:
         extract_prompt = (
-            "Identify if any persistent fact, decision, preference, or critical project requirement was shared in this turn. "
-            "Return a JSON object with a key 'facts' containing a list of short string summaries. "
-            "If nothing persistent was shared, return {\"facts\": []}.\n\n"
+            "Identify if any persistent fact, decision, preference, or requirement was shared in this turn. "
+            "Return JSON: {\"facts\": [\"short fact 1\", \"short fact 2\"]}. If none, return {\"facts\": []}.\n\n"
             f"User: {prompt}\nAssistant: {full_res}"
         )
         try:
