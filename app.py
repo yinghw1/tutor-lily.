@@ -266,6 +266,27 @@ st.markdown("""
         border-color: #F4D018 !important;
         background: rgba(244, 208, 24, 0.1) !important;
     }
+
+    /* NEW: Floating sidebar toggle (top-right) */
+    .st-key-toggle_sidebar {
+        position: fixed;
+        top: 14px;
+        right: 20px;
+        z-index: 1000002;
+        width: auto !important;
+    }
+    .st-key-toggle_sidebar button {
+        border-radius: 50% !important;
+        width: 40px;
+        height: 40px;
+        padding: 0 !important;
+        border: 1px solid rgba(128, 128, 128, 0.22) !important;
+        background: rgba(128, 128, 128, 0.06) !important;
+    }
+    .st-key-toggle_sidebar button:hover {
+        border-color: #F4D018 !important;
+        background: rgba(244, 208, 24, 0.12) !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -281,6 +302,10 @@ if "active_project_id" not in st.session_state:
 if "active_project_name" not in st.session_state:
     st.session_state.active_project_name = None
 
+# NEW: Sidebar visibility state
+if "sidebar_visible" not in st.session_state:
+    st.session_state.sidebar_visible = True
+
 # Ensure an active session exists
 if "active_session_id" not in st.session_state:
     existing_general = get_sessions(project_id=None)
@@ -288,6 +313,34 @@ if "active_session_id" not in st.session_state:
         st.session_state.active_session_id = existing_general[0][0]
     else:
         st.session_state.active_session_id = create_chat_session("New chat", None)
+
+# ============================================================
+# NEW: Sidebar Toggle Button (floating, top-right)
+# ============================================================
+def toggle_sidebar():
+    st.session_state.sidebar_visible = not st.session_state.sidebar_visible
+
+st.button(
+    "",
+    key="toggle_sidebar",
+    icon=":material_left_panel_close:" if st.session_state.sidebar_visible else ":material_left_panel_open:",
+    help="Hide sidebar" if st.session_state.sidebar_visible else "Show sidebar",
+    on_click=toggle_sidebar,
+)
+
+# Hide the sidebar (and its native collapsed control) when toggled off
+if not st.session_state.sidebar_visible:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"],
+        [data-testid="stSidebarCollapsedControl"] {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ============================================================
 # Sidebar (Gemini Layout: Brand -> New Chat -> Projects -> All Chats)
@@ -305,314 +358,4 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-    # Top "New chat" action (switches to General mode)
-    if st.button("📝  New chat", use_container_width=True):
-        st.session_state.active_project_id = None
-        st.session_state.active_project_name = None
-        st.session_state.active_session_id = create_chat_session("New chat", None)
-        st.rerun()
-
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-
-    # --------------------------------------------------------
-    # Projects Section (Like Gemini's "Notebooks" Section)
-    # --------------------------------------------------------
-    st.caption("Projects")
-    
-    with st.popover("＋ New project", use_container_width=True):
-        new_pname = st.text_input("Project Name", placeholder="e.g., Maglev Research")
-        if st.button("Create Project", use_container_width=True) and new_pname.strip():
-            pid = get_or_create_project(new_pname.strip())
-            st.session_state.active_project_id = pid
-            st.session_state.active_project_name = new_pname.strip()
-            st.session_state.active_session_id = create_chat_session(f"{new_pname.strip()} Chat", pid)
-            st.rerun()
-
-    all_projects = get_all_projects()
-    for pid, pname in all_projects:
-        is_proj_active = (st.session_state.active_project_id == pid)
-        proj_icon = "📂" if is_proj_active else "📁"
-        if st.button(f"{proj_icon}  {pname}", key=f"proj_{pid}", use_container_width=True):
-            st.session_state.active_project_id = pid
-            st.session_state.active_project_name = pname
-            proj_sess = get_sessions(project_id=pid)
-            if proj_sess:
-                st.session_state.active_session_id = proj_sess[0][0]
-            else:
-                st.session_state.active_session_id = create_chat_session(f"{pname} Chat", pid)
-            st.rerun()
-
-        # If this project is selected, show "+ New project chat", its chats, and its memory underneath
-        if is_proj_active:
-            if st.button("   ↳ ＋ New project chat", key=f"new_pchat_{pid}", use_container_width=True):
-                st.session_state.active_session_id = create_chat_session(f"{pname} Chat", pid)
-                st.rerun()
-
-            proj_sessions = get_sessions(project_id=pid)
-            for psid, pstitle in proj_sessions:
-                active_marker = "• " if psid == st.session_state.active_session_id else "   "
-                if st.button(f"   {active_marker}{pstitle}", key=f"psess_{psid}", use_container_width=True):
-                    st.session_state.active_session_id = psid
-                    st.rerun()
-
-            memories = get_project_memories(pid)
-            with st.expander(f"🧠 Project Memory ({len(memories)})"):
-                if memories:
-                    for mem_id, m_fact in memories:
-                        c1, c2 = st.columns([5, 1])
-                        c1.markdown(f"<small>• {m_fact}</small>", unsafe_allow_html=True)
-                        if c2.button("✖", key=f"del_mem_{mem_id}"):
-                            delete_project_memory(mem_id)
-                            st.rerun()
-                else:
-                    st.caption("Memories shared in this project are saved automatically.")
-
-    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-
-    # --------------------------------------------------------
-    # "All" Past Chats Section
-    # --------------------------------------------------------
-    st.caption("All")
-    general_sessions = get_sessions(project_id=None)
-    for sid, stitle in general_sessions:
-        is_current = (sid == st.session_state.active_session_id and st.session_state.active_project_id is None)
-        label = f"💬  {stitle}" if is_current else f"    {stitle}"
-        if st.button(label, key=f"gsess_{sid}", use_container_width=True):
-            st.session_state.active_project_id = None
-            st.session_state.active_project_name = None
-            st.session_state.active_session_id = sid
-            st.rerun()
-
-# ============================================================
-# Main Chat Area
-# ============================================================
-active_session_id = st.session_state.active_session_id
-active_project_id = st.session_state.active_project_id
-active_project_name = st.session_state.active_project_name
-
-messages = load_session_messages(active_session_id) if active_session_id else []
-
-if not messages:
-    badge = (
-        f"<div style='margin-top:6px; font-size:13px; color:#888;'>📂 Project: <b>{active_project_name}</b> (Memory Recall Active)</div>"
-        if active_project_id
-        else "<div style='margin-top:6px; font-size:14px; color:#888;'>How can I help you today?</div>"
-    )
-    st.markdown(
-        f"""
-        <div style="text-align: center; margin-top: 65px; margin-bottom: 45px;">
-            <img src="{LOGO_URI}" width="84" height="84" style="border-radius: 20px; box-shadow: 0 6px 20px rgba(0,0,0,0.08);">
-            <h2 style="font-weight: 600; margin-top: 16px; margin-bottom: 0;">Hello, I'm Vox</h2>
-            {badge}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-for msg in messages:
-    avatar_img = LOGO_URI if msg["role"] == "assistant" else None
-    with st.chat_message(msg["role"], avatar=avatar_img):
-        st.markdown(msg["content"])
-
-# ============================================================
-# Gemini-Style Bottom Controls Bar:
-# Bottom-Left: "+" File Uploader & Live Search Toggle | Bottom-Right: Model & Thinking
-# ============================================================
-col_left, col_web, col_spacer, col_right = st.columns([0.8, 2.2, 2.5, 2.5])
-
-with col_left:
-    with st.popover("＋"):
-        st.markdown("**Attach files**")
-        uploaded_file = st.file_uploader(
-            "Upload Images, HTML, Code, or Text",
-            type=["png", "jpg", "jpeg", "webp", "html", "htm", "txt", "py", "js", "css", "json", "csv", "md"],
-            label_visibility="collapsed"
-        )
-        if uploaded_file is not None:
-            st.success(f"📎 {uploaded_file.name}")
-
-with col_web:
-    st.session_state.live_search = st.toggle(
-        "🌐 Live Search",
-        value=st.session_state.live_search,
-        help="Enable real-time web browsing via OpenRouter"
-    )
-
-with col_right:
-    short_model_label = {
-        "Gemini Flash 3.8": "3.8 Flash",
-        "Claude Sonnet 5.5": "Sonnet 5.5",
-        "GPT 5": "GPT 5"
-    }.get(st.session_state.selected_model, st.session_state.selected_model)
-    
-    web_badge = " 🌐" if st.session_state.live_search else ""
-    pill_label = f"{short_model_label} · {st.session_state.thinking_level}{web_badge} ▴"
-    
-    with st.popover(pill_label, use_container_width=True):
-        st.caption("Select AI Model")
-        model_choice = st.radio(
-            "AI Model",
-            options=["Gemini Flash 3.8", "Claude Sonnet 5.5", "GPT 5"],
-            captions=[
-                "All-around fast help & multimodal",
-                "Advanced coding & nuanced writing",
-                "Complex reasoning & deep tasks"
-            ],
-            index=["Gemini Flash 3.8", "Claude Sonnet 5.5", "GPT 5"].index(st.session_state.selected_model),
-            label_visibility="collapsed"
-        )
-        if model_choice != st.session_state.selected_model:
-            st.session_state.selected_model = model_choice
-            st.rerun()
-
-        st.divider()
-        st.caption("Thinking level")
-        think_choice = st.segmented_control(
-            "Thinking Level",
-            options=["Low", "Mid", "High"],
-            default=st.session_state.thinking_level,
-            label_visibility="collapsed"
-        )
-        if think_choice and think_choice != st.session_state.thinking_level:
-            st.session_state.thinking_level = think_choice
-            st.rerun()
-
-# Show subtle attachment chip if a file is queued
-if uploaded_file is not None:
-    st.caption(f"📎 Attached ready to send: `{uploaded_file.name}`")
-
-# ============================================================
-# Chat Input & OpenRouter Execution
-# ============================================================
-chat_placeholder = f"Ask Vox in {active_project_name}..." if active_project_id else "Ask Vox"
-
-if prompt := st.chat_input(chat_placeholder):
-    api_key = get_api_key()
-    if not api_key:
-        st.error("Missing `OPENROUTER_API_KEY`. Add it to your Streamlit Secrets (`st.secrets['OPENROUTER_API_KEY']`) or environment variables.")
-        st.stop()
-
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key,
-        default_headers={
-            "HTTP-Referer": "https://voxathon.streamlit.app",
-            "X-Title": "Vox (Voxathon)",
-        }
-    )
-
-    display_prompt = prompt
-    api_user_content = prompt
-
-    if uploaded_file is not None:
-        file_name = uploaded_file.name
-        file_ext = file_name.split(".")[-1].lower()
-        
-        if file_ext in ["png", "jpg", "jpeg", "webp"]:
-            bytes_data = uploaded_file.getvalue()
-            b64_img = base64.b64encode(bytes_data).decode("utf-8")
-            mime_type = f"image/{'jpeg' if file_ext == 'jpg' else file_ext}"
-            display_prompt += f"\n\n📎 *[Attached Image: `{file_name}`]*"
-            api_user_content = [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_img}"}}
-            ]
-        else:
-            try:
-                text_data = uploaded_file.getvalue().decode("utf-8")
-                display_prompt += f"\n\n📎 *[Attached File: `{file_name}`]*"
-                api_user_content = f"{prompt}\n\n--- Content of Attached File ({file_name}) ---\n{text_data}\n--- End of File ---"
-            except Exception:
-                display_prompt += f"\n\n📎 *[Attached Binary File: `{file_name}`]*"
-
-    save_chat_message(active_session_id, "user", display_prompt)
-    with st.chat_message("user"):
-        st.markdown(display_prompt)
-
-    thinking_prompts = {
-        "Low": " Keep your response concise, fast, and directly to the point with minimal explanation.",
-        "Mid": " Provide a balanced, clear, and well-structured response.",
-        "High": " Use deep reasoning. Break down complex problems step-by-step, analyze edge cases thoroughly, and provide a comprehensive response."
-    }
-
-    system_prompt = (
-        "You are Vox (full name: Voxathon), a versatile, intelligent, and helpful general-purpose AI assistant."
-        + thinking_prompts.get(st.session_state.thinking_level, "")
-    )
-
-    if active_project_id:
-        memories = get_project_memories(active_project_id)
-        mem_str = "\n".join([f"- {m[1]}" for m in memories]) if memories else "No project memories saved yet."
-        system_prompt += (
-            f"\n\nYou are currently in Projects Mode working on the project: '{active_project_name}'."
-            f"\nHere is the recalled memory from all past interactions in this project:\n{mem_str}\n"
-            "Use this memory seamlessly to maintain continuity and recall user details when relevant."
-        )
-
-    full_chat_history = load_session_messages(active_session_id)
-    api_messages = [{"role": "system", "content": system_prompt}]
-    
-    for m in full_chat_history[:-1]:
-        api_messages.append({"role": m["role"], "content": m["content"]})
-    api_messages.append({"role": "user", "content": api_user_content})
-
-    # Exact model names requested
-    model_map = {
-        "GPT 5": "openai/gpt-5",
-        "Claude Sonnet 5.5": "anthropic/claude-sonnet-5-5",
-        "Gemini Flash 3.8": "google/gemini-3.8-flash"
-    }
-    base_model_code = model_map.get(st.session_state.selected_model, "google/gemini-3.8-flash")
-
-    # Configure OpenRouter Live Web Search plugin if toggled on
-    extra_params = None
-    if st.session_state.live_search:
-        extra_params = {
-            "plugins": [{"id": "web", "max_results": 5}]
-        }
-
-    with st.chat_message("assistant", avatar=LOGO_URI):
-        placeholder = st.empty()
-        full_res = ""
-        
-        try:
-            stream = client.chat.completions.create(
-                model=base_model_code,
-                messages=api_messages,
-                stream=True,
-                extra_body=extra_params
-            )
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    full_res += chunk.choices[0].delta.content
-                    placeholder.markdown(full_res + "▌")
-            placeholder.markdown(full_res)
-        except Exception as e:
-            st.error(f"OpenRouter Error: {e}")
-            st.stop()
-
-    save_chat_message(active_session_id, "assistant", full_res)
-
-    # Automatic Project Memory Extraction (Always runs offline without web search surcharge)
-    if active_project_id:
-        extract_prompt = (
-            "Review the following interaction from a project chat. Extract any important facts, goals, preferences, "
-            "technical choices, or project details shared by the user that should be remembered for future chats in this project. "
-            "Return ONLY a valid JSON object with a single key 'facts' containing a list of concise strings. "
-            "If no new persistent project info was shared, return {\"facts\": []}.\n\n"
-            f"User: {prompt}\nAssistant: {full_res}"
-        )
-        try:
-            mem_res = client.chat.completions.create(
-                model=base_model_code,
-                messages=[{"role": "user", "content": extract_prompt}],
-                response_format={"type": "json_object"}
-            )
-            raw_json = mem_res.choices[0].message.content
-            extracted = json.loads(raw_json).get("facts", [])
-            if isinstance(extracted, list):
-                for fact in extracted:
-                    if isinstance(fact, str) and fact.strip():
-                        add_project_memory(active_project_id, fact.strip())
-        except Exception:
-            pass
+    # Top "New chat" action (switches▌
