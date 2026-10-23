@@ -266,27 +266,6 @@ st.markdown("""
         border-color: #F4D018 !important;
         background: rgba(244, 208, 24, 0.1) !important;
     }
-
-    /* Floating sidebar toggle (top-right) */
-    .st-key-toggle_sidebar {
-        position: fixed;
-        top: 14px;
-        right: 20px;
-        z-index: 1000002;
-        width: auto !important;
-    }
-    .st-key-toggle_sidebar button {
-        border-radius: 50% !important;
-        width: 40px;
-        height: 40px;
-        padding: 0 !important;
-        border: 1px solid rgba(128, 128, 128, 0.22) !important;
-        background: rgba(128, 128, 128, 0.06) !important;
-    }
-    .st-key-toggle_sidebar button:hover {
-        border-color: #F4D018 !important;
-        background: rgba(244, 208, 24, 0.12) !important;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -301,8 +280,6 @@ if "active_project_id" not in st.session_state:
     st.session_state.active_project_id = None
 if "active_project_name" not in st.session_state:
     st.session_state.active_project_name = None
-if "sidebar_visible" not in st.session_state:
-    st.session_state.sidebar_visible = True
 
 # Ensure an active session exists
 if "active_session_id" not in st.session_state:
@@ -313,36 +290,10 @@ if "active_session_id" not in st.session_state:
         st.session_state.active_session_id = create_chat_session("New chat", None)
 
 # ============================================================
-# Sidebar Toggle Button (floating, top-right)
-# ============================================================
-def toggle_sidebar():
-    st.session_state.sidebar_visible = not st.session_state.sidebar_visible
-
-st.button(
-    "◀" if st.session_state.sidebar_visible else "▶",
-    key="toggle_sidebar",
-    help="Hide sidebar" if st.session_state.sidebar_visible else "Show sidebar",
-    on_click=toggle_sidebar,
-)
-
-# Hide the sidebar when toggled off
-if not st.session_state.sidebar_visible:
-    st.markdown(
-        """
-        <style>
-        [data-testid="stSidebar"],
-        [data-testid="stSidebarCollapsedControl"] {
-            display: none !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# ============================================================
 # Sidebar (Gemini Layout: Brand -> New Chat -> Projects -> All Chats)
 # ============================================================
 with st.sidebar:
+    # Top Vox Branding Header
     st.markdown(
         f"""
         <div style="display: flex; align-items: center; gap: 11px; padding: 6px 8px 18px 8px;">
@@ -354,6 +305,7 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
+    # Top "New chat" action (switches to General mode)
     if st.button("📝  New chat", use_container_width=True):
         st.session_state.active_project_id = None
         st.session_state.active_project_name = None
@@ -363,7 +315,7 @@ with st.sidebar:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     # --------------------------------------------------------
-    # Projects Section
+    # Projects Section (Like Gemini's "Notebooks" Section)
     # --------------------------------------------------------
     st.caption("Projects")
     
@@ -390,6 +342,7 @@ with st.sidebar:
                 st.session_state.active_session_id = create_chat_session(f"{pname} Chat", pid)
             st.rerun()
 
+        # If this project is selected, show "+ New project chat", its chats, and its memory underneath
         if is_proj_active:
             if st.button("   ↳ ＋ New project chat", key=f"new_pchat_{pid}", use_container_width=True):
                 st.session_state.active_session_id = create_chat_session(f"{pname} Chat", pid)
@@ -524,6 +477,7 @@ with col_right:
             st.session_state.thinking_level = think_choice
             st.rerun()
 
+# Show subtle attachment chip if a file is queued
 if uploaded_file is not None:
     st.caption(f"📎 Attached ready to send: `{uploaded_file.name}`")
 
@@ -602,6 +556,7 @@ if prompt := st.chat_input(chat_placeholder):
         api_messages.append({"role": m["role"], "content": m["content"]})
     api_messages.append({"role": "user", "content": api_user_content})
 
+    # Exact model names requested
     model_map = {
         "GPT 5": "openai/gpt-5",
         "Claude Sonnet 5.5": "anthropic/claude-sonnet-5-5",
@@ -609,6 +564,7 @@ if prompt := st.chat_input(chat_placeholder):
     }
     base_model_code = model_map.get(st.session_state.selected_model, "google/gemini-3.8-flash")
 
+    # Configure OpenRouter Live Web Search plugin if toggled on
     extra_params = None
     if st.session_state.live_search:
         extra_params = {
@@ -637,6 +593,7 @@ if prompt := st.chat_input(chat_placeholder):
 
     save_chat_message(active_session_id, "assistant", full_res)
 
+    # Automatic Project Memory Extraction (Always runs offline without web search surcharge)
     if active_project_id:
         extract_prompt = (
             "Review the following interaction from a project chat. Extract any important facts, goals, preferences, "
